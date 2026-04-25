@@ -139,9 +139,8 @@ def fetch_rows(query: str) -> list[tuple]:
 # Local flights data
 # =========================
 
-def load_flights_df() -> pd.DataFrame:
-    df = pd.read_csv(FLIGHTS_FILE)
-
+def load_flights_df() -> pd.DataFrame: 
+    df = pd.read_csv(FLIGHTS_FILE, dtype=str) 
     # Normalize column names
     df.columns = [c.strip() for c in df.columns]
 
@@ -171,12 +170,19 @@ def load_flights_df() -> pd.DataFrame:
     # Numeric cleanup
     df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
     df["Distance"] = pd.to_numeric(df["Distance"], errors="coerce")
-
-    # Date cleanup: your sample uses DD-MM-YYYY
-    df["FlightDate"] = pd.to_datetime(df["FlightDate"], format="%d-%m-%Y", errors="coerce")
+    
+    #correct date parsing
+    df["FlightDate"] = pd.to_datetime(
+        df["FlightDate"].astype(str).str.strip(),
+        format="%Y-%m-%d",
+        errors="coerce"
+    )
 
     # Keep time as string for now because your source is time-only.
     # You can convert to time type later if needed.
+    df = df.dropna(subset=["FlightDate", "Price"])
+
+    
     return df
 
 
