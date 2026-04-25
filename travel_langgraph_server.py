@@ -972,7 +972,33 @@ def health():
 def chat(req: ChatRequest):
     try:
         result = travel_graph.invoke({"user_message": req.message})
+        #validation code 
+        answer = result.get("answer", "")
 
+        allowed_names = set()
+
+        # collect valid names
+        for h in result.get("hotels", []):
+            allowed_names.add(str(h.get("name")))
+
+        for r in result.get("restaurants", []):
+            allowed_names.add(str(r.get("name")))
+
+        for a in result.get("attractions", []):
+            allowed_names.add(str(a.get("name")))
+
+        for f in result.get("flights", {}).get("flights", []):
+            allowed_names.add(str(f.get("flight_number")))
+
+        hallucinated = []
+
+        for line in answer.split("\n"):
+            if any(char.isdigit() for char in line):  # simple check
+                found = any(name in line for name in allowed_names)
+                if not found:
+                    hallucinated.append(line) 
+        print("HALLUCINATED:", hallucinated)
+        ## validation code ends here 
         debug = {
             "intent": result.get("intent"),
             "origin": result.get("origin"),
@@ -987,6 +1013,7 @@ def chat(req: ChatRequest):
             "restaurants_count": len(result.get("restaurants", [])),
             "attractions_count": len(result.get("attractions", [])),
             "rag_results_count": len(result.get("rag_results", [])),
+            "hallucinated_lines": hallucinated
         }
 
         return ChatResponse(
