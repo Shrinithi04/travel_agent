@@ -799,6 +799,7 @@ def answer_hotels_node(state: TravelState) -> TravelState:
             f"   - Maximum occupancy: {h.get('max_occupancy')}\n"
             f"   - Rating: {h.get('rating')}\n"
             f"   - Minimum nights: {h.get('min_nights')}\n"
+            f"   - Source: {h.get('source_file')}\n" 
         )
 
     return {"answer": "\n".join(lines)}
@@ -833,6 +834,7 @@ def answer_restaurants_node(state: TravelState) -> TravelState:
             f"   - Average cost: ${r.get('average_cost')}\n"
             f"   - Rating: {r.get('rating')}\n"
             f"   - Cuisines: {r.get('cuisines')}\n"
+            f"   - Source: {r.get('source_file')}\n"
         )
 
     return {"answer": "\n".join(lines)}
@@ -869,6 +871,7 @@ def answer_attractions_node(state: TravelState) -> TravelState:
             f"   - Phone: {a.get('phone_number')}\n"
             f"   - Website: {a.get('website')}\n"
             f"   - Rating: {a.get('rating')}\n"
+            f"   - Source: {a.get('source_file')}\n"
         )
 
     return {"answer": "\n".join(lines)}
@@ -977,27 +980,68 @@ def chat(req: ChatRequest):
 
         allowed_names = set()
 
-        # collect valid names
+
+        # Collect hotel names
         for h in result.get("hotels", []):
-            allowed_names.add(str(h.get("name")))
+            if h.get("name"):
+                allowed_names.add(str(h.get("name")))
 
+        # Collect restaurant names
         for r in result.get("restaurants", []):
-            allowed_names.add(str(r.get("name")))
+            if r.get("name"):
+                allowed_names.add(str(r.get("name")))
 
+        # Collect attraction names
         for a in result.get("attractions", []):
-            allowed_names.add(str(a.get("name")))
+            if a.get("name"):
+                allowed_names.add(str(a.get("name")))
 
-        for f in result.get("flights", {}).get("flights", []):
-            allowed_names.add(str(f.get("flight_number")))
+        # Collect flight numbers
+        if isinstance(result.get("flights"), dict):
+            for f in result.get("flights", {}).get("flights", []):
+                if f.get("flight_number"):
+                    allowed_names.add(str(f.get("flight_number")))
 
         hallucinated = []
 
+        entity_keywords = [
+            "flight",
+            "hotel",
+            "stay",
+            "check into",
+            "visit",
+            "explore",
+            "walk along",
+            "dine",
+            "lunch",
+            "dinner",
+            "restaurant",
+        ]
         for line in answer.split("\n"):
-            if any(char.isdigit() for char in line):  # simple check
-                found = any(name in line for name in allowed_names)
-                if not found:
-                    hallucinated.append(line) 
+            clean_line = line.strip()
+
+            if not clean_line:
+                continue
+
+        # Only check lines that seem to mention real entities
+        is_entity_line = any(
+            keyword in clean_line.lower()
+            for keyword in entity_keywords
+        )
+
+        if is_entity_line:
+            found = any(
+                allowed_name.lower() in clean_line.lower()
+                for allowed_name in allowed_names
+            )
+
+            if not found:
+                hallucinated.append(clean_line)
+
+        print("ALLOWED NAMES:", allowed_names)
         print("HALLUCINATED:", hallucinated)
+
+      
         ## validation code ends here 
         debug = {
             "intent": result.get("intent"),
