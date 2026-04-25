@@ -439,6 +439,10 @@ Possible intents:
 Extract available fields:
 origin, destination, city, start_date, end_date, date, budget, max_price, preference
 
+Also extract:
+- cuisine (example: seafood, italian, chinese, pizza, indian, etc)
+- If no cuisine is mentioned, return null
+
 Rules:
 - Use null if missing.
 - Dates must be YYYY-MM-DD.
@@ -492,6 +496,7 @@ User message:
         "budget": data.get("budget"),
         "max_price": data.get("max_price") or data.get("budget"),
         "preference": data.get("preference") or "best",
+        "cuisine": data.get("cuisine"),
     }
 
 
@@ -690,7 +695,13 @@ def restaurants_only_node(state: TravelState) -> TravelState:
         max_average_cost=float(state["max_price"]) if state.get("max_price") else 999999,
         limit=8,
     )
+    cuisine = (state.get("cuisine") or "").lower()
 
+    if cuisine:
+        restaurants = [
+            r for r in restaurants
+            if r.get("cuisines") and cuisine in r.get("cuisines").lower()
+        ]
     return {"restaurants": restaurants}
 
 
@@ -739,59 +750,118 @@ Do not invent flights.
     return {"answer": llm.invoke(prompt).content}
 
 
+# def answer_hotels_node(state: TravelState) -> TravelState:
+#     prompt = f"""
+# Answer the user's hotel question using ONLY this data.
+
+# User question:
+# {state['user_message']}
+
+# Hotels:
+# {json.dumps(state.get('hotels'), indent=2)}
+
+
+# Rules:
+# - Do not invent hotels.
+# - List ALL hotels provided in the data.
+# - Include name, city, price per night, room type, max occupancy, rating, and minimum nights if available.
+# - If the user asks for cheap hotels, sort/explain from cheapest to costliest.
+
+# Answer in a clean numbered list.
+# """
+
+#     return {"answer": llm.invoke(prompt).content}
+
 def answer_hotels_node(state: TravelState) -> TravelState:
-    prompt = f"""
-Answer the user's hotel question using ONLY this data.
+    hotels = state.get("hotels", [])
 
-User question:
-{state['user_message']}
+    if not hotels:
+        return {"answer": "No hotels found for your request."}
 
-Hotels:
-{json.dumps(state.get('hotels'), indent=2)}
+    lines = ["Here are the hotels found:\n"]
+
+    for i, h in enumerate(hotels, start=1):
+        lines.append(
+            f"{i}. {h.get('name')}\n"
+            f"   - City: {h.get('city')}\n"
+            f"   - Price per night: ${h.get('price_per_night')}\n"
+            f"   - Room type: {h.get('room_type')}\n"
+            f"   - Maximum occupancy: {h.get('max_occupancy')}\n"
+            f"   - Rating: {h.get('rating')}\n"
+            f"   - Minimum nights: {h.get('min_nights')}\n"
+        )
+
+    return {"answer": "\n".join(lines)}
 
 
-Rules:
-- Do not invent hotels.
-- List ALL hotels provided in the data.
-- Include name, city, price per night, room type, max occupancy, rating, and minimum nights if available.
-- If the user asks for cheap hotels, sort/explain from cheapest to costliest.
+# def answer_restaurants_node(state: TravelState) -> TravelState:
+#     prompt = f"""
+# Answer the user's restaurant question using ONLY this data.
 
-Answer in a clean numbered list.
-"""
+# User question:
+# {state['user_message']}
 
-    return {"answer": llm.invoke(prompt).content}
+# Restaurants:
+# {json.dumps(state.get('restaurants'), indent=2)}
 
+# Do not invent restaurants.
+# """
 
+#     return {"answer": llm.invoke(prompt).content}
 def answer_restaurants_node(state: TravelState) -> TravelState:
-    prompt = f"""
-Answer the user's restaurant question using ONLY this data.
+    restaurants = state.get("restaurants", [])
 
-User question:
-{state['user_message']}
+    if not restaurants:
+        return {"answer": "No restaurants found for your request."}
 
-Restaurants:
-{json.dumps(state.get('restaurants'), indent=2)}
+    lines = ["Here are the restaurants found:\n"]
 
-Do not invent restaurants.
-"""
+    for i, r in enumerate(restaurants, start=1):
+        lines.append(
+            f"{i}. {r.get('name')}\n"
+            f"   - City: {r.get('city')}\n"
+            f"   - Average cost: ${r.get('average_cost')}\n"
+            f"   - Rating: {r.get('rating')}\n"
+            f"   - Cuisines: {r.get('cuisines')}\n"
+        )
 
-    return {"answer": llm.invoke(prompt).content}
+    return {"answer": "\n".join(lines)}
 
+
+# def answer_attractions_node(state: TravelState) -> TravelState:
+#     prompt = f"""
+# Answer the user's attraction question using ONLY this data.
+
+# User question:
+# {state['user_message']}
+
+# Attractions:
+# {json.dumps(state.get('attractions'), indent=2)}
+
+# Do not invent attractions.
+# """
+
+#     return {"answer": llm.invoke(prompt).content}
 
 def answer_attractions_node(state: TravelState) -> TravelState:
-    prompt = f"""
-Answer the user's attraction question using ONLY this data.
+    attractions = state.get("attractions", [])
 
-User question:
-{state['user_message']}
+    if not attractions:
+        return {"answer": "No attractions found for your request."}
 
-Attractions:
-{json.dumps(state.get('attractions'), indent=2)}
+    lines = ["Here are the attractions found:\n"]
 
-Do not invent attractions.
-"""
+    for i, a in enumerate(attractions, start=1):
+        lines.append(
+            f"{i}. {a.get('name')}\n"
+            f"   - City: {a.get('city')}\n"
+            f"   - Address: {a.get('address')}\n"
+            f"   - Phone: {a.get('phone_number')}\n"
+            f"   - Website: {a.get('website')}\n"
+            f"   - Rating: {a.get('rating')}\n"
+        )
 
-    return {"answer": llm.invoke(prompt).content}
+    return {"answer": "\n".join(lines)}
 
 
 def answer_general_rag_node(state: TravelState) -> TravelState:
@@ -898,6 +968,7 @@ def chat(req: ChatRequest):
             "origin": result.get("origin"),
             "destination": result.get("destination"),
             "city": result.get("city"),
+            "cuisine": result.get("cuisine"),
             "dates": result.get("dates"),
             "budget_split": result.get("budget_split"),
             "flights_count": len(result.get("flights", {}).get("flights", []))
