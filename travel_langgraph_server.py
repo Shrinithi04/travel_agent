@@ -9,6 +9,7 @@ import snowflake.connector
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from langchain_ollama import ChatOllama
@@ -26,6 +27,13 @@ logger = logging.getLogger("travel-langgraph")
 
 app = FastAPI(title="Travel LangGraph Agent", version="1.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 SNOWFLAKE_CONFIG = {
     "user": os.getenv("SNOWFLAKE_USER"),
@@ -287,7 +295,7 @@ def search_hotels_data(city: str, max_price_per_night: float, limit: int = 5):
 
     query = f"""
         SELECT
-            name, city, price, rating, room_type, max_occupancy, min_nights, text
+            source_file,name, city, price, rating, room_type, max_occupancy, min_nights, text
         FROM travel_embeddings
         WHERE type = 'hotel'
           AND city ILIKE '%{city_esc}%'
@@ -302,7 +310,7 @@ def search_hotels_data(city: str, max_price_per_night: float, limit: int = 5):
     if not rows:
         query = f"""
             SELECT
-                name, city, price, rating, room_type, max_occupancy, min_nights, text
+                source_file,name, city, price, rating, room_type, max_occupancy, min_nights, text
             FROM travel_embeddings
             WHERE type = 'hotel'
               AND city ILIKE '%{city_esc}%'
@@ -313,6 +321,7 @@ def search_hotels_data(city: str, max_price_per_night: float, limit: int = 5):
         rows = fetch_rows(query)
 
     keys = [
+        "source_file",
         "name",
         "city",
         "price_per_night",
@@ -331,7 +340,7 @@ def search_restaurants_data(city: str, max_average_cost: float, limit: int = 8):
 
     query = f"""
         SELECT
-            name, city, average_cost, rating, cuisines, text
+            source_file,name, city, average_cost, rating, cuisines, text
         FROM travel_embeddings
         WHERE type = 'restaurant'
           AND city ILIKE '%{city_esc}%'
@@ -346,7 +355,7 @@ def search_restaurants_data(city: str, max_average_cost: float, limit: int = 8):
     if not rows:
         query = f"""
             SELECT
-                name, city, average_cost, rating, cuisines, text
+                source_file,name, city, average_cost, rating, cuisines, text
             FROM travel_embeddings
             WHERE type = 'restaurant'
               AND city ILIKE '%{city_esc}%'
@@ -356,7 +365,7 @@ def search_restaurants_data(city: str, max_average_cost: float, limit: int = 8):
         """
         rows = fetch_rows(query)
 
-    keys = ["name", "city", "average_cost", "rating", "cuisines", "text"]
+    keys = ["source_file","name", "city", "average_cost", "rating", "cuisines", "text"]
 
     return [dict(zip(keys, row)) for row in rows]
 
@@ -367,7 +376,7 @@ def search_attractions_data(city: str, preference: str, limit: int = 8):
 
     query = f"""
         SELECT
-            name, city, address, phone_number, website, rating, text
+            source_file,name, city, address, phone_number, website, rating, text
         FROM travel_embeddings
         WHERE type = 'attraction'
           AND city ILIKE '%{city_esc}%'
@@ -380,7 +389,7 @@ def search_attractions_data(city: str, preference: str, limit: int = 8):
 
     rows = fetch_rows(query)
 
-    keys = ["name", "city", "address", "phone_number", "website", "rating", "text"]
+    keys = ["source_file","name", "city", "address", "phone_number", "website", "rating", "text"]
 
     return [dict(zip(keys, row)) for row in rows]
 
@@ -588,6 +597,7 @@ You are a travel planner.
 Use ONLY the provided data.
 Do not invent flights, hotels, restaurants, attractions, prices, flight numbers, or addresses.
 If something is missing, say "Not found".
+At the end, include a "Sources Used" section listing the source_file for hotels, restaurants, and attractions used.
 
 Trip:
 - Origin: {state.get("origin")}
