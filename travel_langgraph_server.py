@@ -12,7 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+import re
+
 from langchain_ollama import ChatOllama
+# from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
 
 
@@ -45,6 +48,7 @@ SNOWFLAKE_CONFIG = {
 }
 
 FLIGHTS_FILE = os.getenv("FLIGHTS_FILE", "flights_cleaned.csv")
+
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
 
@@ -54,6 +58,10 @@ llm = ChatOllama(
     num_ctx=8192,
 )
 
+# llm = ChatGroq(
+#     model=os.getenv("GROQ_MODEL"),
+#     temperature=0,
+# )
 
 # =========================
 # API MODELS
@@ -68,9 +76,9 @@ class ChatResponse(BaseModel):
     debug: Optional[dict[str, Any]] = None
 
 
-# =========================
+
 # STATE
-# =========================
+
 
 class TravelState(TypedDict, total=False):
     user_message: str
@@ -162,7 +170,7 @@ def fetch_rows(query: str) -> list[tuple]:
 # =========================
 # FLIGHTS DATA
 # =========================
-
+ 
 def load_flights_df() -> pd.DataFrame:
     df = pd.read_csv(FLIGHTS_FILE, dtype=str)
     df.columns = [c.strip() for c in df.columns]
@@ -472,6 +480,7 @@ User message:
     #  SAFE PARSE
     try:
         data = json.loads(response)
+
     except Exception:
         print("JSON PARSE FAILED:", response)
 
